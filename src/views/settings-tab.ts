@@ -195,7 +195,7 @@ export class ReadItLaterSettingsTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Youtube Data API v3 key')
-            .setDesc('If entered, Youtube related content types will use Youtube API to fetc the data.')
+            .setDesc('If entered, Youtube related content types will use Youtube API to fetch the data.')
             .addText((text) =>
                 text
                     .setPlaceholder('')
