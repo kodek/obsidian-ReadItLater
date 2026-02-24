@@ -1,4 +1,4 @@
-import { Platform, request } from 'obsidian';
+import { Platform, requestUrl } from 'obsidian';
 import * as DOMPurify from 'isomorphic-dompurify';
 import { normalizeFilename } from 'src/helpers/fileutils';
 import { replaceImages } from 'src/helpers/replaceImages';
@@ -50,12 +50,21 @@ class StackExchangeParser extends Parser {
 
     async prepareNote(clipboardContent: string): Promise<Note> {
         const createdAt = new Date();
-        const response = await request({
+        const response = await requestUrl({
             method: 'GET',
             url: clipboardContent,
             headers: { ...desktopBrowserUserAgent },
         });
-        const document = new DOMParser().parseFromString(response, 'text/html');
+
+        if (response.status === 429) {
+            throw new Error('Rate limited (HTTP 429). Try again later.');
+        }
+        if (response.status >= 400) {
+            throw new Error(`HTTP ${response.status} error fetching ${clipboardContent}`);
+        }
+
+        const html = new TextDecoder().decode(response.arrayBuffer);
+        const document = new DOMParser().parseFromString(html, 'text/html');
         const question = await this.parseDocument(document);
 
         const fileNameTemplate = this.templateEngine.render(this.plugin.settings.stackExchangeNoteTitle, {

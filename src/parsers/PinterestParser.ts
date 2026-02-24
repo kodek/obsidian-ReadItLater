@@ -120,7 +120,7 @@ export class PinterestParser extends Parser {
             url: url,
             title: pinJsonData?.title ?? document.querySelector('h1')?.textContent ?? '',
             description:
-                pinJsonData?.descriotion ??
+                pinJsonData?.description ??
                 document.querySelector("[data-test-id='truncated-description'] div div")?.textContent ??
                 '',
             link:

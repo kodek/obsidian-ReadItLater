@@ -32,6 +32,9 @@ interface WebsiteNoteData {
     previewURL: string;
     publishedTime: string;
     readabilityArticle: ReadabilityArticle;
+    articleOgDescription: string;
+    articleMetaAuthor: string;
+    articlePublishedTime: string;
 }
 
 class WebsiteParser extends Parser {
@@ -53,10 +56,35 @@ class WebsiteParser extends Parser {
 
         const createdAt = new Date();
         const previewUrl = this.extractPreviewUrl(document);
+
+        // Extract OG/meta fields for template variables and thin-content fallback
+        const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content') ?? '';
+        const ogDescription = document.querySelector('meta[property="og:description"]')?.getAttribute('content') ?? '';
+        const ogSiteName = document.querySelector('meta[property="og:site_name"]')?.getAttribute('content') ?? '';
+        const metaAuthor =
+            document.querySelector('meta[name="author"]')?.getAttribute('content') ??
+            document.querySelector('meta[property="article:author"]')?.getAttribute('content') ??
+            '';
+        const rawPublishedTime =
+            document.querySelector('meta[property="article:published_time"]')?.getAttribute('content') ?? '';
+
         const readableDocument = new Readability(document).parse();
 
         if (readableDocument === null || !Object.prototype.hasOwnProperty.call(readableDocument, 'content')) {
-            return this.notParsableArticle(originUrl.href, previewUrl, createdAt);
+            return this.notParsableArticle(originUrl.href, previewUrl, createdAt, {
+                title: ogTitle,
+                description: ogDescription,
+                siteName: ogSiteName,
+            });
+        }
+
+        // Fall back to not-parsable path for thin content (JS-rendered pages, paywalls, etc.)
+        if (readableDocument.textContent.trim().length < 100) {
+            return this.notParsableArticle(originUrl.href, previewUrl, createdAt, {
+                title: ogTitle,
+                description: ogDescription,
+                siteName: ogSiteName,
+            });
         }
 
         const content = await parseHtmlContent(readableDocument.content);
@@ -64,18 +92,21 @@ class WebsiteParser extends Parser {
         return this.parsableArticle(
             {
                 date: this.getFormattedDateForContent(createdAt),
-                articleTitle: readableDocument.title || 'No title',
+                articleTitle: readableDocument.title || ogTitle || 'No title',
                 articleURL: originUrl.href,
                 articleReadingTime: this.getEstimatedReadingTime(readableDocument),
                 articleContent: content,
-                siteName: readableDocument.siteName || '',
-                author: readableDocument.byline || '',
+                siteName: readableDocument.siteName || ogSiteName || '',
+                author: readableDocument.byline || metaAuthor || '',
                 previewURL: previewUrl || '',
                 publishedTime:
                     readableDocument.publishedTime !== null
                         ? this.getFormattedDateForContent(readableDocument.publishedTime)
                         : '',
                 readabilityArticle: readableDocument,
+                articleOgDescription: ogDescription,
+                articleMetaAuthor: metaAuthor,
+                articlePublishedTime: rawPublishedTime ? this.getFormattedDateForContent(rawPublishedTime) : '',
             },
             createdAt,
         );
@@ -188,12 +219,20 @@ class WebsiteParser extends Parser {
         );
     }
 
-    protected async notParsableArticle(url: string, previewUrl: string | null, createdAt: Date): Promise<Note> {
+    protected async notParsableArticle(
+        url: string,
+        previewUrl: string | null,
+        createdAt: Date,
+        ogData?: { title?: string; description?: string; siteName?: string },
+    ): Promise<Note> {
         console.error('Website not parseable');
 
         let content = this.templateEngine.render(this.plugin.settings.notParsableArticleNote, {
             articleURL: url,
-            previewURL: previewUrl,
+            previewURL: previewUrl ?? '',
+            articleTitle: ogData?.title ?? '',
+            articleOgDescription: ogData?.description ?? '',
+            siteName: ogData?.siteName ?? '',
         });
 
         const fileNameTemplate = this.templateEngine.render(this.plugin.settings.notParseableArticleNoteTitle, {

@@ -12,12 +12,13 @@ export default class GithubParser extends WebsiteParser {
         const originUrl = new URL(url);
         const document = await this.getDocument(originUrl);
 
-        // Extract readme content
+        // Extract readme content (may be null on issue/PR pages, profile pages, etc.)
         const readme = document.querySelector('article.markdown-body');
-        // Remove anchor elements causing to show empty links
-        readme.querySelectorAll('[aria-label^="Permalink:"]').forEach((anchorElement) => anchorElement.remove());
-
-        document.querySelector('body').innerHTML = readme.outerHTML;
+        if (readme) {
+            // Remove anchor elements causing to show empty links
+            readme.querySelectorAll('[aria-label^="Permalink:"]').forEach((anchorElement) => anchorElement.remove());
+            document.querySelector('body').innerHTML = readme.outerHTML;
+        }
 
         return this.makeNote(document, originUrl);
     }

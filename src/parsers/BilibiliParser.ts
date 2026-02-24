@@ -1,4 +1,5 @@
-import { request } from 'obsidian';
+import { requestUrl } from 'obsidian';
+import { handleError } from 'src/helpers/error';
 import { Note } from './Note';
 import { Parser } from './Parser';
 
@@ -19,7 +20,12 @@ class BilibiliParser extends Parser {
 
     async prepareNote(url: string): Promise<Note> {
         const createdAt = new Date();
-        const data = await this.getNoteData(url, createdAt);
+        let data: BilibiliNoteData;
+        try {
+            data = await this.getNoteData(url, createdAt);
+        } catch (error) {
+            handleError(error, 'Unable to parse Bilibili page.');
+        }
 
         const content = this.templateEngine.render(this.plugin.settings.bilibiliNote, data);
 
@@ -32,7 +38,7 @@ class BilibiliParser extends Parser {
     }
 
     private async getNoteData(url: string, createdAt: Date): Promise<BilibiliNoteData> {
-        const response = await request({
+        const response = await requestUrl({
             method: 'GET',
             url,
             headers: {
@@ -40,13 +46,22 @@ class BilibiliParser extends Parser {
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
             },
         });
-        const videoHTML = new DOMParser().parseFromString(response, 'text/html');
+
+        if (response.status === 429) {
+            throw new Error('Rate limited (HTTP 429). Try again later.');
+        }
+        if (response.status >= 400) {
+            throw new Error(`HTTP ${response.status} error fetching ${url}`);
+        }
+
+        const html = new TextDecoder().decode(response.arrayBuffer);
+        const videoHTML = new DOMParser().parseFromString(html, 'text/html');
         const videoId = this.PATTERN.exec(url)[3] ?? '';
 
         return {
             date: this.getFormattedDateForContent(createdAt),
             videoId: videoId,
-            videoTitle: videoHTML.querySelector("[property~='og:title']").getAttribute('content') ?? '',
+            videoTitle: videoHTML.querySelector("[property~='og:title']")?.getAttribute('content') ?? '',
             videoURL: url,
             videoPlayer: `<iframe width="${this.plugin.settings.bilibiliEmbedWidth}" height="${this.plugin.settings.bilibiliEmbedHeight}" src="https://player.bilibili.com/player.html?autoplay=0&bvid=${videoId}" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>`,
         };

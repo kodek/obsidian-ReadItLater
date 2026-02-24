@@ -13,5 +13,6 @@ export default class ParserCreator {
                 return parser;
             }
         }
+        throw new Error('No parser found for content.');
     }
 }

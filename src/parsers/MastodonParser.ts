@@ -1,6 +1,7 @@
 import { Platform, request } from 'obsidian';
 import { isValidUrl, normalizeFilename } from 'src/helpers/fileutils';
 import { replaceImages } from 'src/helpers/replaceImages';
+import { handleError } from 'src/helpers/error';
 import { Parser } from './Parser';
 import { Note } from './Note';
 import { parseHtmlContent } from './parsehtml';
@@ -124,15 +125,19 @@ class MastodonParser extends Parser {
     }
 
     private async loadStatus(hostname: string, statusId: string): Promise<Status> {
-        const response = JSON.parse(
-            await request({
-                method: 'GET',
-                contentType: 'application/json',
-                url: `https://${hostname}${MASTODON_API.STATUS}/${statusId}`,
-            }),
-        );
+        try {
+            const response = JSON.parse(
+                await request({
+                    method: 'GET',
+                    contentType: 'application/json',
+                    url: `https://${hostname}${MASTODON_API.STATUS}/${statusId}`,
+                }),
+            );
 
-        return response;
+            return response;
+        } catch (error) {
+            handleError(error, 'Unable to load Mastodon status.');
+        }
     }
 
     private async loadReplies(hostname: string, statusId: string): Promise<Status[]> {
@@ -142,15 +147,20 @@ class MastodonParser extends Parser {
             String.prototype.replace.call(MASTODON_API.CONTEXT, '%id%', statusId),
         );
 
-        const response = JSON.parse(
-            await request({
-                method: 'GET',
-                contentType: 'application/json',
-                url: url,
-            }),
-        );
+        try {
+            const response = JSON.parse(
+                await request({
+                    method: 'GET',
+                    contentType: 'application/json',
+                    url: url,
+                }),
+            );
 
-        return response.descendants;
+            return response.descendants;
+        } catch (error) {
+            console.warn('Unable to load Mastodon replies:', error);
+            return [];
+        }
     }
 
     private async parseStatus(status: Status, fileName: string, assetsDir: string): Promise<string> {

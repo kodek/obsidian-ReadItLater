@@ -61,7 +61,7 @@ class TwitterParser extends Parser {
     private getPublishedDateFromDOM(html: string): string {
         const dom = new DOMParser().parseFromString(html, 'text/html');
         const dateElement = dom.querySelector('blockquote > a');
-        const date = moment(dateElement.textContent);
+        const date = moment(dateElement?.textContent ?? '');
 
         return date.isValid() ? date.format(this.plugin.settings.dateContentFmt) : '';
     }

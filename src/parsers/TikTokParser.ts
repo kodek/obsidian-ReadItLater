@@ -1,4 +1,5 @@
-import { request } from 'obsidian';
+import { requestUrl } from 'obsidian';
+import { handleError } from 'src/helpers/error';
 import { Note } from './Note';
 import { Parser } from './Parser';
 
@@ -21,7 +22,12 @@ class TikTokParser extends Parser {
 
     async prepareNote(clipboardContent: string): Promise<Note> {
         const createdAt = new Date();
-        const data = await this.parseHtml(clipboardContent, createdAt);
+        let data: TiktokNoteData;
+        try {
+            data = await this.parseHtml(clipboardContent, createdAt);
+        } catch (error) {
+            handleError(error, 'Unable to parse TikTok page.');
+        }
 
         const content = this.templateEngine.render(this.plugin.settings.tikTokNote, data);
 
@@ -34,7 +40,7 @@ class TikTokParser extends Parser {
     }
 
     private async parseHtml(url: string, createdAt: Date): Promise<TiktokNoteData> {
-        const response = await request({
+        const response = await requestUrl({
             method: 'GET',
             url,
             headers: {
@@ -43,7 +49,15 @@ class TikTokParser extends Parser {
             },
         });
 
-        const videoHTML = new DOMParser().parseFromString(response, 'text/html');
+        if (response.status === 429) {
+            throw new Error('Rate limited (HTTP 429). Try again later.');
+        }
+        if (response.status >= 400) {
+            throw new Error(`HTTP ${response.status} error fetching ${url}`);
+        }
+
+        const html = new TextDecoder().decode(response.arrayBuffer);
+        const videoHTML = new DOMParser().parseFromString(html, 'text/html');
         const videoRegexExec = this.PATTERN.exec(url);
 
         return {

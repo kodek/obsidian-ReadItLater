@@ -52,8 +52,13 @@ export class NoteService {
     }
 
     private async makeNote(content: string): Promise<Note> {
-        const parser = await this.parserCreator.createParser(content);
-        return await parser.prepareNote(content);
+        try {
+            const parser = await this.parserCreator.createParser(content);
+            return await parser.prepareNote(content);
+        } catch (error) {
+            new Notice(`ReadItLater: Failed to process content. ${error.message}`);
+            throw error;
+        }
     }
 
     private openNote(note: Note): void {
